@@ -171,7 +171,7 @@ const MusicBtn = ({ started }) => {
   const [on, setOn] = useState(false);
   const audio = useRef(null);
   useEffect(() => {
-    audio.current = new Audio(`/React-Projects/music/music.mp3`);    audio.current.loop = true;
+    audio.current = new Audio('/React-Projects/music/music.mp3');    audio.current.loop = true;
     audio.current.volume = 0.5;
     return () => audio.current?.pause();
   }, []);
