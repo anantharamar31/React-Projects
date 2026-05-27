@@ -7,6 +7,7 @@ const C = {
   peach:"#ffb482", textSec:"rgba(90,50,110,.65)", textMut:"rgba(150,100,170,.4)",
 };
 const bgMain = "linear-gradient(160deg,#f9f0ff 0%,#fff5ee 55%,#ffeee6 100%)";
+const isMobile = () => window.innerWidth < 700;
 
 const FloatingPetals = ({ count = 14 }) => {
   const items = useRef(Array.from({ length: count }, (_, i) => ({
@@ -58,6 +59,8 @@ const Sparkles = ({ count = 28 }) => {
 
 const Polaroid = ({ src, page }) => {
   const [imgError, setImgError] = useState(false);
+  const mobile = isMobile();
+
   const grads = [
     "linear-gradient(135deg,#e8d5f5,#ffe0d0)",
     "linear-gradient(135deg,#f5d5e8,#ffd5c8)",
@@ -77,14 +80,18 @@ const Polaroid = ({ src, page }) => {
       animate={{ y:[0,-7,0] }}
       transition={{ duration:4, repeat:Infinity, ease:"easeInOut" }}
       style={{
-        width:`clamp(${window.innerWidth < 700 ? '185px,37vh,370px' : '154px,31vh,308px'})`,
+        /* Mobile: fills ~85% of screen width, max 420px
+           Laptop: 40% bigger than original */
+        width: mobile ? "min(85vw, 420px)" : "clamp(154px,31vh,308px)",
         margin:"0 auto",
         transform:`rotate(${(page%2===0?1:-1)*(page%3+1)}deg)`
       }}>
       <div style={{
         background:"#fff",
         borderRadius:3,
-        padding:"clamp(6px,1vh,12px) clamp(6px,1vh,12px) clamp(22px,3.5vh,40px)",
+        padding: mobile
+          ? "clamp(8px,1.5vh,16px) clamp(8px,1.5vh,16px) clamp(28px,5vh,52px)"
+          : "clamp(6px,1vh,12px) clamp(6px,1vh,12px) clamp(22px,3.5vh,40px)",
         boxShadow:"0 10px 32px rgba(180,130,200,.2), 0 2px 6px rgba(0,0,0,.05)"
       }}>
         {/* Photo area */}
@@ -99,7 +106,6 @@ const Polaroid = ({ src, page }) => {
           alignItems:"center",
           justifyContent:"center"
         }}>
-          {/* Real photo */}
           {!imgError && (
             <img
               src={src}
@@ -118,9 +124,8 @@ const Polaroid = ({ src, page }) => {
               }}
             />
           )}
-          {/* Placeholder symbol shown when no photo */}
           <span style={{
-            fontSize:"clamp(28px,6vh,52px)",
+            fontSize: mobile ? "clamp(40px,10vw,72px)" : "clamp(28px,6vh,52px)",
             color:"rgba(150,80,180,.18)",
             position:"relative",
             zIndex:0
@@ -133,9 +138,9 @@ const Polaroid = ({ src, page }) => {
         <p style={{
           textAlign:"center",
           color:"#c4a0d0",
-          fontSize:"clamp(9px,1vh,12px)",
+          fontSize: mobile ? "clamp(11px,1.4vh,14px)" : "clamp(9px,1vh,12px)",
           fontStyle:"italic",
-          marginTop:5,
+          marginTop: mobile ? 8 : 5,
           letterSpacing:".07em",
           fontFamily:"Georgia,serif"
         }}>
@@ -171,7 +176,8 @@ const MusicBtn = ({ started }) => {
   const [on, setOn] = useState(false);
   const audio = useRef(null);
   useEffect(() => {
-    audio.current = new Audio('/React-Projects/music/music.mp3');    audio.current.loop = true;
+    audio.current = new Audio('/React-Projects/music/music.mp3');
+    audio.current.loop = true;
     audio.current.volume = 0.5;
     return () => audio.current?.pause();
   }, []);
@@ -381,6 +387,7 @@ const EmotionalIntro = ({ onNext }) => {
 };
 
 const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
+  const mobile = isMobile();
   const bgGrads = [
     "linear-gradient(160deg,#f9f0ff,#fff5f0,#ffeee6)",
     "linear-gradient(160deg,#fff2f8,#fff8f2,#ffeade)",
@@ -412,16 +419,16 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
         ))}
       </div>
 
-      {/* Two column grid */}
+      {/* Grid — single col mobile, two col laptop */}
       <motion.div key={page}
         initial={{ opacity:0, x:30 }} animate={{ opacity:1, x:0 }}
         exit={{ opacity:0, x:-30 }} transition={{ duration:.45, ease:"easeOut" }}
         style={{
           position:"relative", zIndex:1,
           display:"grid",
-          gridTemplateColumns: window.innerWidth >= 700 ? "1fr 1fr" : "1fr",
-          gap:"clamp(10px,2vh,28px)",
-          width:"100%", maxWidth:860,
+          gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
+          gap: mobile ? "clamp(12px,2vh,20px)" : "clamp(10px,2vh,28px)",
+          width:"100%", maxWidth: mobile ? "100%" : 860,
           alignItems:"center"
         }}>
 
@@ -431,14 +438,17 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
         </div>
 
         {/* Text side */}
-        <div style={{ textAlign: window.innerWidth >= 700 ? "left" : "center",
-          paddingLeft: window.innerWidth >= 700 ? "clamp(12px,2vw,32px)" : 0 }}>
+        <div style={{
+          textAlign: mobile ? "center" : "left",
+          paddingLeft: mobile ? 0 : "clamp(12px,2vw,32px)"
+        }}>
           {data.quote.split("\n").map((line,i) => (
             <motion.p key={i}
               initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }}
               transition={{ delay:.25+i*.1 }}
               style={{ fontFamily:"Georgia,serif",
-                fontSize:"clamp(14px,2.8vh,22px)", fontWeight:300,
+                fontSize: mobile ? "clamp(16px,4vw,22px)" : "clamp(14px,2.8vh,22px)",
+                fontWeight:300,
                 color:C.lav800, lineHeight:1.5,
                 marginBottom:"clamp(2px,0.5vh,6px)" }}>
               {line}
@@ -447,7 +457,8 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
           <motion.p
             initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:.55 }}
             style={{ fontFamily:"Georgia,serif",
-              fontSize:"clamp(10px,1.4vh,14px)", fontStyle:"italic",
+              fontSize: mobile ? "clamp(12px,3vw,15px)" : "clamp(10px,1.4vh,14px)",
+              fontStyle:"italic",
               color:"rgba(180,100,140,.72)",
               marginTop:"clamp(4px,0.8vh,10px)",
               marginBottom:"clamp(8px,1.8vh,20px)" }}>
@@ -456,7 +467,7 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
 
           {/* Nav buttons */}
           <div style={{ display:"flex", gap:8, alignItems:"center",
-            justifyContent: window.innerWidth >= 700 ? "flex-start" : "center",
+            justifyContent: mobile ? "center" : "flex-start",
             flexWrap:"wrap" }}>
             {page > 1 && (
               <motion.button
@@ -491,7 +502,7 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
 
           <p style={{ color:C.textMut, fontSize:10, letterSpacing:".18em",
             marginTop:"clamp(4px,0.8vh,10px)",
-            textAlign: window.innerWidth >= 700 ? "left" : "center" }}>
+            textAlign: mobile ? "center" : "left" }}>
             {page} / {total}
           </p>
         </div>
@@ -550,6 +561,8 @@ const AppreciationPage = ({ onNext }) => (
 
 const FinalPage = ({ onReplay }) => {
   const [confetti, setConfetti] = useState(false);
+  const mobile = isMobile();
+
   useEffect(() => {
     setConfetti(true);
     const t = setTimeout(() => setConfetti(false), 5000);
@@ -582,7 +595,7 @@ const FinalPage = ({ onReplay }) => {
         style={{
           position:"relative", zIndex:1, width:"100%", maxWidth:820,
           display:"grid",
-          gridTemplateColumns: window.innerWidth >= 700 ? "1fr 1fr" : "1fr",
+          gridTemplateColumns: mobile ? "1fr" : "1fr 1fr",
           gap:"clamp(10px,2vh,24px)",
           alignItems:"center"
         }}>
