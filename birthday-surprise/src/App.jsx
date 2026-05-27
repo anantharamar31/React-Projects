@@ -77,7 +77,7 @@ const Polaroid = ({ src, page }) => {
       animate={{ y:[0,-7,0] }}
       transition={{ duration:4, repeat:Infinity, ease:"easeInOut" }}
       style={{
-        width:"clamp(110px,22vh,220px)",
+        width:"clamp(154px,31vh,308px)",
         margin:"0 auto",
         transform:`rotate(${(page%2===0?1:-1)*(page%3+1)}deg)`
       }}>
