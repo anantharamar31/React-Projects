@@ -82,7 +82,7 @@ const Polaroid = ({ src, page }) => {
       style={{
         /* Mobile: fills ~85% of screen width, max 420px
            Laptop: 40% bigger than original */
-        width: mobile ? "min(85vw, 420px)" : "clamp(154px,31vh,308px)",
+        width: mobile ? "min(85vw, 420px)" : "clamp(320px,52vh,540px)",
         margin:"0 auto",
         transform:`rotate(${(page%2===0?1:-1)*(page%3+1)}deg)`
       }}>
