@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { TIMELINE_DATA, CONFIG } from "./data/timelineData.js";
 
 const C = {
@@ -9,6 +9,407 @@ const C = {
 const bgMain = "linear-gradient(160deg,#f9f0ff 0%,#fff5ee 55%,#ffeee6 100%)";
 const isMobile = () => window.innerWidth < 700;
 
+/* ─────────────────────────────────────────────
+   BUTTERFLY DESIGNS — one per page
+   Each has: colors, wing shape path data,
+   body color, size, and flight personality
+───────────────────────────────────────────── */
+const BUTTERFLY_DESIGNS = [
+  {
+    // Page 1 — Purple Morpho
+    wingColor: ["#b07ee8","#d4a8f8"],
+    wingAccent: "#7040c0",
+    spotColor: "rgba(255,255,255,0.45)",
+    bodyColor: "#5a2090",
+    size: 38,
+    name: "morpho",
+  },
+  {
+    // Page 2 — Peach Swallowtail
+    wingColor: ["#ffb07a","#ffd4a8"],
+    wingAccent: "#d06020",
+    spotColor: "rgba(255,255,200,0.5)",
+    bodyColor: "#a04010",
+    size: 42,
+    name: "swallowtail",
+  },
+  {
+    // Page 3 — Rose Monarch
+    wingColor: ["#f472b6","#fba8d0"],
+    wingAccent: "#be185d",
+    spotColor: "rgba(255,255,255,0.4)",
+    bodyColor: "#831843",
+    size: 36,
+    name: "monarch",
+  },
+  {
+    // Page 4 — Sky Blue
+    wingColor: ["#60c8f8","#a8e4fc"],
+    wingAccent: "#0080d0",
+    spotColor: "rgba(255,255,255,0.5)",
+    bodyColor: "#005090",
+    size: 40,
+    name: "blue",
+  },
+  {
+    // Page 5 — Gold Emperor
+    wingColor: ["#f8c030","#fde880"],
+    wingAccent: "#b06000",
+    spotColor: "rgba(255,255,255,0.35)",
+    bodyColor: "#7a4000",
+    size: 44,
+    name: "emperor",
+  },
+  {
+    // Page 6 — Jade
+    wingColor: ["#50d4a0","#a0f4d4"],
+    wingAccent: "#108060",
+    spotColor: "rgba(255,255,255,0.4)",
+    bodyColor: "#0a5040",
+    size: 38,
+    name: "jade",
+  },
+  {
+    // Page 7 — Crimson
+    wingColor: ["#f04060","#f89090"],
+    wingAccent: "#900020",
+    spotColor: "rgba(255,255,200,0.4)",
+    bodyColor: "#600010",
+    size: 40,
+    name: "crimson",
+  },
+  {
+    // Page 8 — Violet
+    wingColor: ["#8040d0","#c090f8"],
+    wingAccent: "#4010a0",
+    spotColor: "rgba(220,180,255,0.5)",
+    bodyColor: "#300880",
+    size: 36,
+    name: "violet",
+  },
+  {
+    // Page 9 — Coral Drift
+    wingColor: ["#f87060","#fdb090"],
+    wingAccent: "#c03020",
+    spotColor: "rgba(255,255,200,0.45)",
+    bodyColor: "#801810",
+    size: 42,
+    name: "coral",
+  },
+  {
+    // Page 10 — Midnight
+    wingColor: ["#5050c8","#9090e8"],
+    wingAccent: "#100880",
+    spotColor: "rgba(180,180,255,0.5)",
+    bodyColor: "#08044a",
+    size: 38,
+    name: "midnight",
+  },
+];
+
+/* ─────────────────────────────────────────────
+   SVG Butterfly — wing flap via CSS animation
+───────────────────────────────────────────── */
+const ButterflyShape = ({ design, flapSpeed = 0.55, scale = 1, opacity = 1 }) => {
+  const { wingColor, wingAccent, spotColor, bodyColor, size, name } = design;
+  const w = size * scale;
+
+  const styles = `
+    @keyframes flap-${name} {
+      0%   { transform: scaleX(1);   }
+      40%  { transform: scaleX(0.18); }
+      50%  { transform: scaleX(0.1);  }
+      60%  { transform: scaleX(0.18); }
+      100% { transform: scaleX(1);   }
+    }
+    @keyframes flap-r-${name} {
+      0%   { transform: scaleX(-1);   }
+      40%  { transform: scaleX(-0.18); }
+      50%  { transform: scaleX(-0.1);  }
+      60%  { transform: scaleX(-0.18); }
+      100% { transform: scaleX(-1);   }
+    }
+  `;
+
+  const gradId = `wg-${name}-${Math.random().toString(36).slice(2,6)}`;
+
+  return (
+    <svg
+      width={w * 2.4}
+      height={w * 1.6}
+      viewBox="-24 -16 48 32"
+      style={{ opacity, overflow: "visible", display: "block" }}
+    >
+      <style>{styles}</style>
+      <defs>
+        <radialGradient id={`${gradId}l`} cx="30%" cy="40%">
+          <stop offset="0%" stopColor={wingColor[1]} />
+          <stop offset="100%" stopColor={wingColor[0]} />
+        </radialGradient>
+        <radialGradient id={`${gradId}r`} cx="70%" cy="40%">
+          <stop offset="0%" stopColor={wingColor[1]} />
+          <stop offset="100%" stopColor={wingColor[0]} />
+        </radialGradient>
+      </defs>
+
+      {/* Left upper wing */}
+      <g style={{
+        transformOrigin: "0 0",
+        animation: `flap-${name} ${flapSpeed}s ease-in-out infinite`,
+      }}>
+        <path
+          d="M0,0 C-2,-8 -14,-14 -20,-8 C-26,-2 -22,6 -16,10 C-10,14 -2,8 0,0 Z"
+          fill={`url(#${gradId}l)`}
+          stroke={wingAccent}
+          strokeWidth="0.4"
+        />
+        {/* Left lower wing */}
+        <path
+          d="M0,0 C-2,4 -12,10 -16,6 C-20,2 -16,-4 -10,-4 C-6,-4 -2,-2 0,0 Z"
+          fill={wingColor[0]}
+          stroke={wingAccent}
+          strokeWidth="0.3"
+          opacity="0.9"
+        />
+        {/* Left spots */}
+        <circle cx="-12" cy="-4" r="2.2" fill={spotColor} />
+        <circle cx="-16" cy="-8" r="1.4" fill={spotColor} opacity="0.7" />
+        <circle cx="-11" cy="4" r="1.5" fill={spotColor} opacity="0.6" />
+        {/* Wing vein lines */}
+        <path d="M0,0 L-16,-8" stroke={wingAccent} strokeWidth="0.25" opacity="0.5" fill="none"/>
+        <path d="M0,0 L-20,-4" stroke={wingAccent} strokeWidth="0.2" opacity="0.4" fill="none"/>
+        <path d="M0,0 L-14,6" stroke={wingAccent} strokeWidth="0.2" opacity="0.4" fill="none"/>
+      </g>
+
+      {/* Right upper wing */}
+      <g style={{
+        transformOrigin: "0 0",
+        animation: `flap-r-${name} ${flapSpeed}s ease-in-out infinite`,
+      }}>
+        <path
+          d="M0,0 C2,-8 14,-14 20,-8 C26,-2 22,6 16,10 C10,14 2,8 0,0 Z"
+          fill={`url(#${gradId}r)`}
+          stroke={wingAccent}
+          strokeWidth="0.4"
+        />
+        {/* Right lower wing */}
+        <path
+          d="M0,0 C2,4 12,10 16,6 C20,2 16,-4 10,-4 C6,-4 2,-2 0,0 Z"
+          fill={wingColor[0]}
+          stroke={wingAccent}
+          strokeWidth="0.3"
+          opacity="0.9"
+        />
+        {/* Right spots */}
+        <circle cx="12" cy="-4" r="2.2" fill={spotColor} />
+        <circle cx="16" cy="-8" r="1.4" fill={spotColor} opacity="0.7" />
+        <circle cx="11" cy="4" r="1.5" fill={spotColor} opacity="0.6" />
+        {/* Wing vein lines */}
+        <path d="M0,0 L16,-8" stroke={wingAccent} strokeWidth="0.25" opacity="0.5" fill="none"/>
+        <path d="M0,0 L20,-4" stroke={wingAccent} strokeWidth="0.2" opacity="0.4" fill="none"/>
+        <path d="M0,0 L14,6" stroke={wingAccent} strokeWidth="0.2" opacity="0.4" fill="none"/>
+      </g>
+
+      {/* Body */}
+      <ellipse cx="0" cy="0" rx="1.2" ry="7" fill={bodyColor} />
+      {/* Head */}
+      <circle cx="0" cy="-7.5" r="1.5" fill={bodyColor} />
+      {/* Antennae */}
+      <path d="M0,-8.5 Q-3,-13 -2,-15" stroke={bodyColor} strokeWidth="0.5" fill="none" strokeLinecap="round"/>
+      <path d="M0,-8.5 Q3,-13 2,-15" stroke={bodyColor} strokeWidth="0.5" fill="none" strokeLinecap="round"/>
+      <circle cx="-2" cy="-15" r="0.7" fill={bodyColor}/>
+      <circle cx="2" cy="-15" r="0.7" fill={bodyColor}/>
+    </svg>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   PageButterflies — manages roaming + settling
+   Unique flight behavior per page
+───────────────────────────────────────────── */
+const FLIGHT_PERSONALITIES = [
+  { roamRadius: 180, roamSpeed: 4.5, settleDelay: 3.2, flapSpeed: 0.5,  wobble: 18 },
+  { roamRadius: 220, roamSpeed: 3.8, settleDelay: 2.8, flapSpeed: 0.45, wobble: 28 },
+  { roamRadius: 150, roamSpeed: 5.2, settleDelay: 3.5, flapSpeed: 0.38, wobble: 12 },
+  { roamRadius: 260, roamSpeed: 3.2, settleDelay: 4.0, flapSpeed: 0.55, wobble: 35 },
+  { roamRadius: 200, roamSpeed: 4.0, settleDelay: 2.5, flapSpeed: 0.42, wobble: 22 },
+  { roamRadius: 170, roamSpeed: 4.8, settleDelay: 3.8, flapSpeed: 0.48, wobble: 16 },
+  { roamRadius: 240, roamSpeed: 3.5, settleDelay: 3.0, flapSpeed: 0.5,  wobble: 30 },
+  { roamRadius: 190, roamSpeed: 4.2, settleDelay: 3.3, flapSpeed: 0.44, wobble: 20 },
+  { roamRadius: 210, roamSpeed: 4.6, settleDelay: 2.9, flapSpeed: 0.52, wobble: 25 },
+  { roamRadius: 230, roamSpeed: 3.9, settleDelay: 3.6, flapSpeed: 0.46, wobble: 32 },
+];
+
+// Corners of the polaroid frame relative to photo center
+const SETTLE_CORNERS = [
+  { dx: -60, dy: -55 },  // top-left
+  { dx:  60, dy: -55 },  // top-right
+  { dx: -60, dy:  55 },  // bottom-left
+  { dx:  60, dy:  55 },  // bottom-right
+];
+
+const SingleButterfly = ({ design, personality, photoRef, index, total }) => {
+  const [phase, setPhase] = useState("roam"); // "roam" | "fly-to" | "settled"
+  const [roamTarget, setRoamTarget] = useState(() => ({
+    x: 20 + Math.random() * 60,
+    y: 20 + Math.random() * 60,
+  }));
+  const [settlePos, setSettlePos] = useState(null);
+  const posRef = useRef({ x: Math.random() * 80 + 10, y: Math.random() * 80 + 10 });
+  const intervalRef = useRef(null);
+
+  // Assign corner to this butterfly
+  const cornerIdx = index % SETTLE_CORNERS.length;
+
+  // Start roaming + schedule settle
+  useEffect(() => {
+    // Roaming — pick new random targets
+    intervalRef.current = setInterval(() => {
+      if (phase === "roam") {
+        setRoamTarget({
+          x: 10 + Math.random() * 80,
+          y: 10 + Math.random() * 75,
+        });
+      }
+    }, personality.roamSpeed * 1000 + Math.random() * 1500);
+
+    // Schedule the settle after delay
+    const settleTimer = setTimeout(() => {
+      if (photoRef.current) {
+        const rect = photoRef.current.getBoundingClientRect();
+        const corner = SETTLE_CORNERS[cornerIdx];
+        const cx = rect.left + rect.width / 2 + corner.dx;
+        const cy = rect.top + rect.height / 2 + corner.dy;
+        // Convert to vw/vh percentages
+        setSettlePos({
+          x: (cx / window.innerWidth) * 100,
+          y: (cy / window.innerHeight) * 100,
+        });
+        setPhase("fly-to");
+        setTimeout(() => setPhase("settled"), 1800);
+      }
+    }, (personality.settleDelay + index * 0.6) * 1000);
+
+    return () => {
+      clearInterval(intervalRef.current);
+      clearTimeout(settleTimer);
+    };
+  }, []); // eslint-disable-line
+
+  const isSettled = phase === "settled";
+  const currentX = phase === "roam" ? roamTarget.x : settlePos ? settlePos.x : roamTarget.x;
+  const currentY = phase === "roam" ? roamTarget.y : settlePos ? settlePos.y : roamTarget.y;
+
+  return (
+    <motion.div
+      style={{
+        position: "fixed",
+        left: 0,
+        top: 0,
+        pointerEvents: "none",
+        zIndex: 10,
+        transformOrigin: "center center",
+      }}
+      animate={{
+        x: `${currentX}vw`,
+        y: `${currentY}vh`,
+        rotate: phase === "roam"
+          ? [0, personality.wobble, -personality.wobble, 0]
+          : 0,
+        scale: isSettled ? 0.7 : 1,
+      }}
+      transition={
+        phase === "roam"
+          ? {
+              x: { duration: personality.roamSpeed + Math.random(), ease: "easeInOut" },
+              y: { duration: personality.roamSpeed + Math.random(), ease: "easeInOut" },
+              rotate: {
+                duration: personality.roamSpeed,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+            }
+          : {
+              duration: 1.8,
+              ease: [0.25, 0.46, 0.45, 0.94],
+            }
+      }
+    >
+      <ButterflyShape
+        design={design}
+        flapSpeed={isSettled ? personality.flapSpeed * 1.8 : personality.flapSpeed}
+        scale={1}
+        opacity={1}
+      />
+    </motion.div>
+  );
+};
+
+const PageButterflies = ({ page, photoRef }) => {
+  const designIdx = (page - 1) % BUTTERFLY_DESIGNS.length;
+  const design = BUTTERFLY_DESIGNS[designIdx];
+  const personality = FLIGHT_PERSONALITIES[designIdx];
+  const count = isMobile() ? 2 : 3;
+
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <SingleButterfly
+          key={`b-${page}-${i}`}
+          design={design}
+          personality={personality}
+          photoRef={photoRef}
+          index={i}
+          total={count}
+        />
+      ))}
+    </>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   Ambient butterflies (non-timeline pages)
+───────────────────────────────────────────── */
+const AmbientButterfly = ({ designIdx, index }) => {
+  const design = BUTTERFLY_DESIGNS[designIdx % BUTTERFLY_DESIGNS.length];
+  const personality = FLIGHT_PERSONALITIES[designIdx % FLIGHT_PERSONALITIES.length];
+  const [target, setTarget] = useState({
+    x: 10 + Math.random() * 80,
+    y: 10 + Math.random() * 80,
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTarget({ x: 10 + Math.random() * 80, y: 10 + Math.random() * 80 });
+    }, (personality.roamSpeed + Math.random() * 2) * 1000);
+    return () => clearInterval(interval);
+  }, [personality.roamSpeed]);
+
+  return (
+    <motion.div
+      style={{ position: "fixed", left: 0, top: 0, pointerEvents: "none", zIndex: 10 }}
+      initial={{ x: `${10 + Math.random() * 80}vw`, y: `${10 + Math.random() * 80}vh`, opacity: 0 }}
+      animate={{
+        x: `${target.x}vw`,
+        y: `${target.y}vh`,
+        opacity: 1,
+        rotate: [0, personality.wobble, -personality.wobble / 2, 0],
+      }}
+      transition={{
+        x: { duration: personality.roamSpeed + 1, ease: "easeInOut" },
+        y: { duration: personality.roamSpeed + 0.5, ease: "easeInOut" },
+        opacity: { duration: 1.5, delay: index * 0.4 },
+        rotate: { duration: personality.roamSpeed, repeat: Infinity, ease: "easeInOut" },
+      }}
+    >
+      <ButterflyShape design={design} flapSpeed={personality.flapSpeed} />
+    </motion.div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   Existing unchanged components
+───────────────────────────────────────────── */
 const FloatingPetals = ({ count = 14 }) => {
   const items = useRef(Array.from({ length: count }, (_, i) => ({
     id: i, x: Math.random() * 110 - 5,
@@ -18,16 +419,16 @@ const FloatingPetals = ({ count = 14 }) => {
     rotate: Math.random() * 360,
     drift: (Math.random() - 0.5) * 90,
     color: i % 2 === 0
-      ? `rgba(196,150,220,${(.18+Math.random()*.22).toFixed(2)})`
-      : `rgba(255,170,120,${(.15+Math.random()*.2).toFixed(2)})`,
+      ? `rgba(196,150,220,${(.18 + Math.random() * .22).toFixed(2)})`
+      : `rgba(255,170,120,${(.15 + Math.random() * .2).toFixed(2)})`,
   }))).current;
 
   return (
-    <div className="petals">
+    <div className="petals" style={{ position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none" }}>
       {items.map(p => (
-        <motion.div key={p.id} className="petal"
-          style={{ left:`${p.x}%`, top:"-5%", width:p.sz, height:p.sz*.75,
-            background:p.color, rotate:p.rotate }}
+        <motion.div key={p.id}
+          style={{ position:"absolute", left:`${p.x}%`, top:"-5%", width:p.sz, height:p.sz*.75,
+            background:p.color, rotate:p.rotate, borderRadius:2 }}
           animate={{ y:["0vh","115vh"], rotate:[p.rotate,p.rotate+720],
             x:[0,p.drift], opacity:[0,.5,.2,0] }}
           transition={{ duration:p.dur, delay:p.delay, repeat:Infinity, ease:"linear" }}
@@ -44,7 +445,7 @@ const Sparkles = ({ count = 28 }) => {
     color:["rgba(196,150,220,.5)","rgba(255,170,120,.45)","rgba(230,160,200,.4)"][i%3],
   }))).current;
   return (
-    <div className="petals">
+    <div style={{ position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none" }}>
       {dots.map(d => (
         <motion.div key={d.id}
           style={{ position:"absolute", left:`${d.x}%`, top:`${d.y}%`,
@@ -57,10 +458,9 @@ const Sparkles = ({ count = 28 }) => {
   );
 };
 
-const Polaroid = ({ src, page }) => {
+const Polaroid = ({ src, page, frameRef }) => {
   const [imgError, setImgError] = useState(false);
   const mobile = isMobile();
-
   const grads = [
     "linear-gradient(135deg,#e8d5f5,#ffe0d0)",
     "linear-gradient(135deg,#f5d5e8,#ffd5c8)",
@@ -77,11 +477,10 @@ const Polaroid = ({ src, page }) => {
 
   return (
     <motion.div
+      ref={frameRef}
       animate={{ y:[0,-7,0] }}
       transition={{ duration:4, repeat:Infinity, ease:"easeInOut" }}
       style={{
-        /* Mobile: fills ~85% of screen width, max 420px
-           Laptop: 40% bigger than original */
         width: mobile ? "min(85vw, 420px)" : "clamp(320px,52vh,540px)",
         margin:"0 auto",
         transform:`rotate(${(page%2===0?1:-1)*(page%3+1)}deg)`
@@ -94,55 +493,35 @@ const Polaroid = ({ src, page }) => {
           : "clamp(6px,1vh,12px) clamp(6px,1vh,12px) clamp(22px,3.5vh,40px)",
         boxShadow:"0 10px 32px rgba(180,130,200,.2), 0 2px 6px rgba(0,0,0,.05)"
       }}>
-        {/* Photo area */}
         <div style={{
-          width:"100%",
-          aspectRatio:"1",
+          width:"100%", aspectRatio:"1",
           background:grads[(page-1)%grads.length],
-          borderRadius:2,
-          overflow:"hidden",
-          position:"relative",
-          display:"flex",
-          alignItems:"center",
-          justifyContent:"center"
+          borderRadius:2, overflow:"hidden",
+          position:"relative", display:"flex",
+          alignItems:"center", justifyContent:"center"
         }}>
           {!imgError && (
             <img
               src={src}
               alt={`Memory ${page}`}
-              style={{
-                position:"absolute",
-                top:0, left:0,
-                width:"100%",
-                height:"100%",
-                objectFit:"cover",
-                zIndex:1
-              }}
-              onError={() => {
-                console.log("Image not found:", src);
-                setImgError(true);
-              }}
+              style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", objectFit:"cover", zIndex:1 }}
+              onError={() => setImgError(true)}
             />
           )}
           <span style={{
             fontSize: mobile ? "clamp(40px,10vw,72px)" : "clamp(28px,6vh,52px)",
             color:"rgba(150,80,180,.18)",
-            position:"relative",
-            zIndex:0
+            position:"relative", zIndex:0
           }}>
             {syms[(page-1)%syms.length]}
           </span>
         </div>
-
-        {/* Polaroid label */}
         <p style={{
-          textAlign:"center",
-          color:"#c4a0d0",
+          textAlign:"center", color:"#c4a0d0",
           fontSize: mobile ? "clamp(11px,1.4vh,14px)" : "clamp(9px,1vh,12px)",
           fontStyle:"italic",
           marginTop: mobile ? 8 : 5,
-          letterSpacing:".07em",
-          fontFamily:"Georgia,serif"
+          letterSpacing:".07em", fontFamily:"Georgia,serif"
         }}>
           ~ memory {page} ~
         </p>
@@ -172,19 +551,42 @@ const Confetti = () => {
   );
 };
 
+/* ─────────────────────────────────────────────
+   MusicBtn — auto-starts when `started` becomes true
+───────────────────────────────────────────── */
 const MusicBtn = ({ started }) => {
   const [on, setOn] = useState(false);
   const audio = useRef(null);
+
   useEffect(() => {
     audio.current = new Audio('/React-Projects/music/music.mp3');
     audio.current.loop = true;
     audio.current.volume = 0.5;
     return () => audio.current?.pause();
   }, []);
+
+  // Auto-play when started becomes true
+  useEffect(() => {
+    if (started && audio.current) {
+      audio.current.play()
+        .then(() => setOn(true))
+        .catch(() => {
+          // Browser blocked autoplay — user must click
+          setOn(false);
+        });
+    }
+  }, [started]);
+
   const toggle = () => {
-    on ? audio.current?.pause() : audio.current?.play().catch(()=>{});
-    setOn(v => !v);
+    if (on) {
+      audio.current?.pause();
+      setOn(false);
+    } else {
+      audio.current?.play().catch(() => {});
+      setOn(true);
+    }
   };
+
   if (!started) return null;
   return (
     <motion.button
@@ -235,6 +637,9 @@ const SS = {
   padding:"clamp(12px,2vh,24px) clamp(14px,4vw,44px)", overflow:"hidden",
 };
 
+/* ─────────────────────────────────────────────
+   Screens
+───────────────────────────────────────────── */
 const LoadingScreen = ({ onDone }) => {
   const [prog, setProg] = useState(0);
   const [txt, setTxt] = useState("Preparing something special...");
@@ -255,9 +660,7 @@ const LoadingScreen = ({ onDone }) => {
     <div style={{ ...SS, background:bgMain }}>
       <FloatingPetals count={12} />
       <div style={{ position:"relative", zIndex:1, textAlign:"center" }}>
-        <motion.div
-          animate={{ scale:[1,1.1,1] }}
-          transition={{ duration:3, repeat:Infinity }}
+        <motion.div animate={{ scale:[1,1.1,1] }} transition={{ duration:3, repeat:Infinity }}
           style={{ fontSize:"clamp(36px,6vh,60px)", marginBottom:"clamp(12px,2vh,24px)" }}>
           🌸
         </motion.div>
@@ -283,6 +686,9 @@ const LoadingScreen = ({ onDone }) => {
 const WelcomeScreen = ({ onEnter }) => (
   <div style={{ ...SS, background:bgMain }}>
     <FloatingPetals count={16} />
+    {/* Ambient butterflies on welcome */}
+    <AmbientButterfly designIdx={0} index={0} />
+    <AmbientButterfly designIdx={4} index={1} />
     <motion.div
       initial={{ opacity:0, y:30 }} animate={{ opacity:1, y:0 }}
       transition={{ duration:.9, delay:.2 }}
@@ -347,6 +753,8 @@ const EmotionalIntro = ({ onNext }) => {
   return (
     <div style={{ ...SS, background:bgMain }}>
       <FloatingPetals count={12} />
+      <AmbientButterfly designIdx={2} index={0} />
+      <AmbientButterfly designIdx={7} index={1} />
       <div style={{ position:"relative", zIndex:1, textAlign:"center", maxWidth:"min(520px,90vw)" }}>
         {lines.map((l,i) => (
           <motion.p key={i}
@@ -388,6 +796,8 @@ const EmotionalIntro = ({ onNext }) => {
 
 const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
   const mobile = isMobile();
+  const photoRef = useRef(null);
+
   const bgGrads = [
     "linear-gradient(160deg,#f9f0ff,#fff5f0,#ffeee6)",
     "linear-gradient(160deg,#fff2f8,#fff8f2,#ffeade)",
@@ -405,6 +815,9 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
     <div style={{ ...SS, background:bgGrads[(page-1)%bgGrads.length] }}>
       <FloatingPetals count={12} />
 
+      {/* Butterflies for this page — key resets them on page change */}
+      <PageButterflies key={`butterflies-${page}`} page={page} photoRef={photoRef} />
+
       {/* Dots */}
       <div style={{ display:"flex", gap:5, justifyContent:"center",
         marginBottom:8, position:"relative", zIndex:1 }}>
@@ -419,7 +832,6 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
         ))}
       </div>
 
-      {/* Grid — single col mobile, two col laptop */}
       <motion.div key={page}
         initial={{ opacity:0, x:30 }} animate={{ opacity:1, x:0 }}
         exit={{ opacity:0, x:-30 }} transition={{ duration:.45, ease:"easeOut" }}
@@ -432,9 +844,9 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
           alignItems:"center"
         }}>
 
-        {/* Photo side */}
+        {/* Photo side — pass ref for butterfly targeting */}
         <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
-          <Polaroid src={data.image} page={page} />
+          <Polaroid src={data.image} page={page} frameRef={photoRef} />
         </div>
 
         {/* Text side */}
@@ -448,8 +860,7 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
               transition={{ delay:.25+i*.1 }}
               style={{ fontFamily:"Georgia,serif",
                 fontSize: mobile ? "clamp(16px,4vw,22px)" : "clamp(14px,2.8vh,22px)",
-                fontWeight:300,
-                color:C.lav800, lineHeight:1.5,
+                fontWeight:300, color:C.lav800, lineHeight:1.5,
                 marginBottom:"clamp(2px,0.5vh,6px)" }}>
               {line}
             </motion.p>
@@ -465,7 +876,6 @@ const TimelinePage = ({ data, page, total, onNext, onPrev }) => {
             {data.subtext}
           </motion.p>
 
-          {/* Nav buttons */}
           <div style={{ display:"flex", gap:8, alignItems:"center",
             justifyContent: mobile ? "center" : "flex-start",
             flexWrap:"wrap" }}>
@@ -515,6 +925,8 @@ const AppreciationPage = ({ onNext }) => (
   <div style={{ ...SS, background:"linear-gradient(160deg,#fdf2ff,#fff5ef,#ffeae0)" }}>
     <FloatingPetals count={18} />
     <Sparkles count={28} />
+    <AmbientButterfly designIdx={5} index={0} />
+    <AmbientButterfly designIdx={3} index={1} />
     <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ duration:1 }}
       style={{ position:"relative", zIndex:1, textAlign:"center", maxWidth:"min(520px,90vw)" }}>
       <motion.div animate={{ scale:[1,1.15,1] }} transition={{ duration:2.5, repeat:Infinity }}
@@ -591,6 +1003,10 @@ const FinalPage = ({ onReplay }) => {
       <FloatingPetals count={20} />
       <Sparkles count={30} />
       {confetti && <Confetti />}
+      {/* Celebration butterflies */}
+      <AmbientButterfly designIdx={0} index={0} />
+      <AmbientButterfly designIdx={4} index={1} />
+      <AmbientButterfly designIdx={8} index={2} />
       <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ duration:1 }}
         style={{
           position:"relative", zIndex:1, width:"100%", maxWidth:820,
@@ -599,7 +1015,6 @@ const FinalPage = ({ onReplay }) => {
           gap:"clamp(10px,2vh,24px)",
           alignItems:"center"
         }}>
-        {/* Left */}
         <div style={{ textAlign:"center" }}>
           <motion.div initial={{ scale:0 }} animate={{ scale:[0,1.3,1] }} transition={{ duration:.8, delay:.2 }}
             style={{ fontSize:"clamp(32px,5.5vh,60px)", marginBottom:"clamp(6px,1.2vh,14px)" }}>
@@ -629,7 +1044,6 @@ const FinalPage = ({ onReplay }) => {
           </motion.p>
         </div>
 
-        {/* Right */}
         <div style={{ textAlign:"center" }}>
           <motion.div initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }} transition={{ delay:1.4 }}
             style={{
@@ -669,6 +1083,9 @@ const FinalPage = ({ onReplay }) => {
   );
 };
 
+/* ─────────────────────────────────────────────
+   Root App
+───────────────────────────────────────────── */
 const SC = { LOAD:"l", WELCOME:"w", INTRO:"i", TIMELINE:"t", APPREC:"a", FINAL:"f" };
 
 export default function App() {
