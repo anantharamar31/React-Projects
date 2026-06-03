@@ -100,15 +100,18 @@ function drawWing(ctx, sp, openAmt) {
 
 function renderButterfly(ctx, W, H, t, sp) {
   ctx.clearRect(0, 0, W, H);
-  const cx = W/2, cy = H/2 + 14;
+  // Derive draw scale from canvas width so paths always fit
+  const drawScale = W / 248;
+  const cx = W / 2;
+  const cy = H * 0.44; // keeps forewing top and hindwing bottom both inside canvas
 
   // Smooth sinusoidal wing scale — cos gives 1→0→-1→0→1
-  // Negative = wings past vertical (brief underside flash, very natural)
   const raw = Math.cos(t * Math.PI * 2 * sp.speed);
   const openAmt = Math.abs(raw);
 
   ctx.save();
   ctx.translate(cx, cy);
+  ctx.scale(drawScale, drawScale); // scale all paths to fit canvas
 
   // RIGHT wing
   ctx.save();
@@ -165,10 +168,10 @@ const ButterflyCanvas = ({ spIndex=0, size=1, flapSpeed=1, style={} }) => {
   const rafRef    = useRef(null);
   const tRef      = useRef(Math.random());
   const sp = SPECIES[spIndex % SPECIES.length];
-  // Extra 40px padding on each side so no wing ever clips
-  const PAD = Math.round(40 * size);
-  const W = Math.round(220 * size) + PAD * 2;
-  const H = Math.round(210 * size) + PAD * 2;
+  // Wing paths span ±104px wide, -62 to +52 tall (in unit coords).
+  // Canvas must fit all of that at the given scale with 20px true buffer.
+  const W = Math.round((104 * 2 + 40) * size);   // 248 at size=1
+  const H = Math.round((62  + 52 + 40) * size);   // 154 at size=1
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -180,6 +183,7 @@ const ButterflyCanvas = ({ spIndex=0, size=1, flapSpeed=1, style={} }) => {
       const dt = Math.min((ts - last) / 1000, 0.05);
       last = ts;
       tRef.current += dt * flapSpeed;
+      // Draw centred in our properly-sized canvas
       renderButterfly(ctx, W, H, tRef.current, sp);
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -187,9 +191,7 @@ const ButterflyCanvas = ({ spIndex=0, size=1, flapSpeed=1, style={} }) => {
     return () => cancelAnimationFrame(rafRef.current);
   }, [spIndex, size, flapSpeed]); // eslint-disable-line
 
-  // negative margin pulls back the padding so layout position is centred
-  const neg = -PAD;
-  return <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", margin:`${neg}px`, ...style }}/>;
+  return <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", ...style }}/>;
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -202,22 +204,36 @@ const ButterflyCanvas = ({ spIndex=0, size=1, flapSpeed=1, style={} }) => {
    3. zIndex is BELOW content (zIndex:2) so they never cover anything.
 ═══════════════════════════════════════════════════════════════════ */
 
-// Safe roam zones: outer margin band only (keeps butterflies off content)
+// ── SAFE ZONE MATHS ─────────────────────────────────────────────
+// Content lives in the CENTER of the screen.
+// Butterflies are only allowed in the 4 corner zones:
+//   top-left:     x 0-22vw,  y 0-25vh
+//   top-right:    x 72-100vw, y 0-25vh
+//   bottom-left:  x 0-22vw,  y 72-100vh
+//   bottom-right: x 72-100vw, y 72-100vh
+// This guarantees they NEVER overlap photos or text.
+
+const SAFE_ZONES = [
+  { xMin:0,  xMax:20, yMin:0,  yMax:28 },   // top-left corner
+  { xMin:74, xMax:96, yMin:0,  yMax:28 },   // top-right corner
+  { xMin:0,  xMax:20, yMin:70, yMax:94 },   // bottom-left corner
+  { xMin:74, xMax:96, yMin:70, yMax:94 },   // bottom-right corner
+];
+
 function safeRoamPos(seed, idx) {
-  // Pick a zone: 0=top-strip, 1=bottom-strip, 2=left-strip, 3=right-strip
-  const zone = (seed * 7 + idx * 3) % 4;
-  if (zone === 0) return { x: 5  + Math.random() * 88, y: 2  + Math.random() * 10 }; // top strip
-  if (zone === 1) return { x: 5  + Math.random() * 88, y: 86 + Math.random() * 10 }; // bottom strip
-  if (zone === 2) return { x: 2  + Math.random() * 12, y: 15 + Math.random() * 68 }; // left strip
-                  return { x: 84 + Math.random() * 12, y: 15 + Math.random() * 68 }; // right strip
+  const zone = SAFE_ZONES[(seed + idx) % 4];
+  return {
+    x: zone.xMin + Math.random() * (zone.xMax - zone.xMin),
+    y: zone.yMin + Math.random() * (zone.yMax - zone.yMin),
+  };
 }
 
-// Screen corners where butterflies rest (away from central content)
+// Rest positions: deep in each corner, well clear of content
 const SCREEN_CORNERS = [
-  { x: 2,  y: 3  },   // top-left
-  { x: 88, y: 3  },   // top-right
-  { x: 2,  y: 87 },   // bottom-left
-  { x: 88, y: 87 },   // bottom-right
+  { x: 1,  y: 2  },   // top-left
+  { x: 80, y: 2  },   // top-right
+  { x: 1,  y: 80 },   // bottom-left
+  { x: 80, y: 80 },   // bottom-right
 ];
 
 const SingleBfly = ({ spIdx, cornerIdx, delayMs, seed }) => {
