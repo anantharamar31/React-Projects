@@ -165,8 +165,10 @@ const ButterflyCanvas = ({ spIndex=0, size=1, flapSpeed=1, style={} }) => {
   const rafRef    = useRef(null);
   const tRef      = useRef(Math.random());
   const sp = SPECIES[spIndex % SPECIES.length];
-  const W = Math.round(220 * size);
-  const H = Math.round(210 * size);
+  // Extra 40px padding on each side so no wing ever clips
+  const PAD = Math.round(40 * size);
+  const W = Math.round(220 * size) + PAD * 2;
+  const H = Math.round(210 * size) + PAD * 2;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -185,43 +187,62 @@ const ButterflyCanvas = ({ spIndex=0, size=1, flapSpeed=1, style={} }) => {
     return () => cancelAnimationFrame(rafRef.current);
   }, [spIndex, size, flapSpeed]); // eslint-disable-line
 
-  return <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", ...style }}/>;
+  // negative margin pulls back the padding so layout position is centred
+  const neg = -PAD;
+  return <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", margin:`${neg}px`, ...style }}/>;
 };
 
 /* ═══════════════════════════════════════════════════════════════════
    FLIGHT ENGINE
+   KEY RULES:
+   1. Roaming: butterflies stay in the OUTER 20% margin of the screen
+      (left/right strips and top/bottom strips) — never over content.
+   2. Settling: they fly to the 4 SCREEN corners, not photo corners,
+      so they are always away from the photo and text.
+   3. zIndex is BELOW content (zIndex:2) so they never cover anything.
 ═══════════════════════════════════════════════════════════════════ */
-const CORNERS = [
-  { fx:0.08, fy:0.10 }, { fx:0.92, fy:0.10 },
-  { fx:0.08, fy:0.90 }, { fx:0.92, fy:0.90 },
+
+// Safe roam zones: outer margin band only (keeps butterflies off content)
+function safeRoamPos(seed, idx) {
+  // Pick a zone: 0=top-strip, 1=bottom-strip, 2=left-strip, 3=right-strip
+  const zone = (seed * 7 + idx * 3) % 4;
+  if (zone === 0) return { x: 5  + Math.random() * 88, y: 2  + Math.random() * 10 }; // top strip
+  if (zone === 1) return { x: 5  + Math.random() * 88, y: 86 + Math.random() * 10 }; // bottom strip
+  if (zone === 2) return { x: 2  + Math.random() * 12, y: 15 + Math.random() * 68 }; // left strip
+                  return { x: 84 + Math.random() * 12, y: 15 + Math.random() * 68 }; // right strip
+}
+
+// Screen corners where butterflies rest (away from central content)
+const SCREEN_CORNERS = [
+  { x: 2,  y: 3  },   // top-left
+  { x: 88, y: 3  },   // top-right
+  { x: 2,  y: 87 },   // bottom-left
+  { x: 88, y: 87 },   // bottom-right
 ];
 
-const SingleBfly = ({ spIdx, photoRef, cornerIdx, delayMs, seed }) => {
+const SingleBfly = ({ spIdx, cornerIdx, delayMs, seed }) => {
   const [phase, setPhase]   = useState("roam");
-  const [pos,   setPos]     = useState({ x:8+(seed*71%80), y:8+(seed*53%72) });
-  const [settle, setSettle] = useState({ x:50, y:50 });
+  const [pos,   setPos]     = useState(() => safeRoamPos(seed, 0));
+  const [settle, setSettle] = useState(SCREEN_CORNERS[cornerIdx]);
   const [rot, setRot]       = useState((seed%44)-22);
   const roamIv  = useRef(null);
   const settleTm = useRef(null);
+  let roamCount = useRef(0);
+
   const pickRoam = useCallback(() => {
-    setPos({ x:5+Math.random()*84, y:5+Math.random()*78 });
-    setRot((Math.random()-0.5)*42);
-  }, []);
+    roamCount.current++;
+    setPos(safeRoamPos(seed, roamCount.current));
+    setRot((Math.random()-0.5)*38);
+  }, [seed]);
+
   useEffect(() => {
-    roamIv.current   = setInterval(pickRoam, 3000+Math.random()*2000);
+    roamIv.current   = setInterval(pickRoam, 2800+Math.random()*1800);
     settleTm.current = setTimeout(() => {
       clearInterval(roamIv.current);
-      if (photoRef.current) {
-        const r = photoRef.current.getBoundingClientRect();
-        const c = CORNERS[cornerIdx];
-        setSettle({
-          x: ((r.left + r.width  * c.fx) / window.innerWidth)  * 100,
-          y: ((r.top  + r.height * c.fy) / window.innerHeight) * 100,
-        });
-        setRot(cornerIdx%2===0 ? 16 : -16);
-        setPhase("glide");
-        setTimeout(() => setPhase("rest"), 2400);
-      }
+      setSettle(SCREEN_CORNERS[cornerIdx]);
+      setRot(cornerIdx%2===0 ? 12 : -12);
+      setPhase("glide");
+      setTimeout(() => setPhase("rest"), 2400);
     }, delayMs);
     return () => { clearInterval(roamIv.current); clearTimeout(settleTm.current); };
   }, []); // eslint-disable-line
@@ -232,8 +253,8 @@ const SingleBfly = ({ spIdx, photoRef, cornerIdx, delayMs, seed }) => {
   const spd = 3.2+(seed%22)*0.12;
 
   return (
-    <motion.div style={{ position:"fixed",left:0,top:0,pointerEvents:"none",zIndex:14 }}
-      animate={{ x:`${tx}vw`, y:`${ty}vh`, rotate:rot, scale:isRest?0.6:1 }}
+    <motion.div style={{ position:"fixed",left:0,top:0,pointerEvents:"none",zIndex:2 }}
+      animate={{ x:`${tx}vw`, y:`${ty}vh`, rotate:rot, scale:isRest?0.55:0.9 }}
       transition={
         isGlide ? { duration:2.3, ease:[0.22,1,0.36,1] } :
         isRest  ? { x:{duration:0},y:{duration:0},scale:{duration:0.9,ease:"easeOut"},
@@ -241,45 +262,47 @@ const SingleBfly = ({ spIdx, photoRef, cornerIdx, delayMs, seed }) => {
         { x:{duration:spd,ease:"easeInOut"},y:{duration:spd+0.5,ease:"easeInOut"},rotate:{duration:spd*0.7} }
       }
     >
-      <motion.div animate={{ y:isRest?[0,-5,0]:[0,-12,3,-8,0] }}
+      <motion.div animate={{ y:isRest?[0,-4,0]:[0,-10,2,-7,0] }}
         transition={{ duration:isRest?3:spd, repeat:Infinity, ease:"easeInOut" }}>
-        <ButterflyCanvas spIndex={spIdx} size={0.65} flapSpeed={isRest?0.5:1}/>
+        <ButterflyCanvas spIndex={spIdx} size={0.55} flapSpeed={isRest?0.5:1}/>
       </motion.div>
     </motion.div>
   );
 };
 
 const AmbientBfly = ({ spIdx, seed, delay=0 }) => {
-  const [pos,setPos] = useState({ x:8+(seed*61%80), y:8+(seed*43%72) });
+  const [pos,setPos] = useState(() => safeRoamPos(seed, 0));
   const [rot,setRot] = useState((seed%38)-19);
+  let cnt = useRef(0);
   useEffect(() => {
     const iv = setInterval(() => {
-      setPos({ x:5+Math.random()*84, y:5+Math.random()*78 });
-      setRot((Math.random()-0.5)*40);
-    }, 3400+Math.random()*2400);
+      cnt.current++;
+      setPos(safeRoamPos(seed, cnt.current));
+      setRot((Math.random()-0.5)*36);
+    }, 3200+Math.random()*2200);
     return () => clearInterval(iv);
-  }, []);
+  }, [seed]);
   const dur = 3.6+(seed%20)*0.14;
   return (
-    <motion.div style={{ position:"fixed",left:0,top:0,pointerEvents:"none",zIndex:14 }}
+    <motion.div style={{ position:"fixed",left:0,top:0,pointerEvents:"none",zIndex:2 }}
       initial={{ x:`${pos.x}vw`,y:`${pos.y}vh`,opacity:0 }}
       animate={{ x:`${pos.x}vw`,y:`${pos.y}vh`,rotate:rot,opacity:1 }}
       transition={{ x:{duration:dur,ease:"easeInOut"},y:{duration:dur+0.5,ease:"easeInOut"},
         rotate:{duration:dur*0.75},opacity:{duration:1.4,delay} }}>
-      <motion.div animate={{ y:[0,-10,2,-7,0] }} transition={{ duration:dur,repeat:Infinity,ease:"easeInOut" }}>
-        <ButterflyCanvas spIndex={spIdx} size={0.60} flapSpeed={0.9}/>
+      <motion.div animate={{ y:[0,-9,2,-6,0] }} transition={{ duration:dur,repeat:Infinity,ease:"easeInOut" }}>
+        <ButterflyCanvas spIndex={spIdx} size={0.52} flapSpeed={0.9}/>
       </motion.div>
     </motion.div>
   );
 };
 
-const PageButterflies = ({ page, photoRef }) => {
+const PageButterflies = ({ page }) => {
   const b = (page-1) % SPECIES.length;
   const mobile = isMobile();
   return <>
-    <SingleBfly key={`a${page}`} spIdx={b}                   photoRef={photoRef} cornerIdx={0} delayMs={3500} seed={page*7}/>
-    <SingleBfly key={`b${page}`} spIdx={(b+3)%SPECIES.length} photoRef={photoRef} cornerIdx={1} delayMs={4600} seed={page*13}/>
-    {!mobile && <SingleBfly key={`c${page}`} spIdx={(b+6)%SPECIES.length} photoRef={photoRef} cornerIdx={2} delayMs={5900} seed={page*19}/>}
+    <SingleBfly key={`a${page}`} spIdx={b}                    cornerIdx={0} delayMs={3500} seed={page*7}/>
+    <SingleBfly key={`b${page}`} spIdx={(b+3)%SPECIES.length} cornerIdx={1} delayMs={4600} seed={page*13}/>
+    {!mobile && <SingleBfly key={`c${page}`} spIdx={(b+6)%SPECIES.length} cornerIdx={2} delayMs={5900} seed={page*19}/>}
   </>;
 };
 
@@ -481,7 +504,7 @@ const TimelinePage=({data,page,total,onNext,onPrev})=>{
     "linear-gradient(160deg,#f6eeff,#fff6f0,#ffece3)","linear-gradient(160deg,#f9efff,#fff4ef,#ffebe1)",
     "linear-gradient(160deg,#fbf0ff,#fff6f1,#ffeee5)","linear-gradient(160deg,#f8eeff,#fff5f0,#ffeae0)"];
   return(<div style={{...SS,background:bgGrads[(page-1)%bgGrads.length]}}><FloatingPetals count={12}/>
-    <PageButterflies key={`bf-${page}`} page={page} photoRef={photoRef}/>
+    <PageButterflies key={`bf-${page}`} page={page}/>
     <div style={{display:"flex",gap:5,justifyContent:"center",marginBottom:8,position:"relative",zIndex:1}}>
       {Array.from({length:total},(_,i)=>(
         <div key={i} style={{height:4,borderRadius:100,transition:"all .3s",width:i+1===page?16:4,
